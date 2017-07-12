@@ -161,7 +161,9 @@ angular.module('patternfly.charts').directive('pfHeatmap', function ($compile, $
       clickAction: '=?',
       rangeOnHover: '=?',
       rangeHoverSize: '@',
-      rangeTooltips: '=?'
+      rangeTooltips: '=?',
+      includeTooltipInsideBox: '=?',
+      tooltipInsideBoxClass: '=?'
     },
     templateUrl: 'charts/heatmap/heatmap.html',
     controller: function ($scope) {
@@ -305,9 +307,12 @@ angular.module('patternfly.charts').directive('pfHeatmap', function ($compile, $
         };
 
         var svg = window.d3.select(thisComponent);
+        var groups;
         svg.selectAll('*').remove();
-        blocks = svg.selectAll('rect').data(data).enter().append('rect');
-        blocks.attr('x', function (d, i) {
+        groups = svg.selectAll('g').data(data).enter().append('g');
+        // blocks = svg.selectAll('rect').data(data).enter().append('rect');
+        // blocks.attr('x', function (d, i) {
+        groups.append('rect').attr('x', function (d, i) {
           return Math.floor(i / numberOfRows) * blockSize;
         }).attr('y', function (d, i) {
           return i % numberOfRows * blockSize;
@@ -324,37 +329,80 @@ angular.module('patternfly.charts').directive('pfHeatmap', function ($compile, $
           return false;
         });
 
+        // adding text inside each box
+        if (scope.includeTooltipInsideBox) {
+          groups.append("text").attr("class", function (d, i) {
+            return scope.tooltipInsideBoxClass;
+          }).text(function (d) {
+            return d.tooltip;
+          }).attr("x", function (d, i) {
+            return (Math.floor(i / numberOfRows) * blockSize) + 3;
+          }).attr("y", function (d, i) {
+            return (i % numberOfRows * blockSize) + 10;
+          });
+
+          // forcing text to wrap inside each box
+          window.d3.selectAll("." + scope.tooltipInsideBoxClass).each(function () {
+            var text = window.d3.select(this);
+            var width = 60, // slightly smaller than the boxes (they're 64px wide)
+              words = text.text().split(/\s+/).reverse(),
+              word,
+              line = [],
+              lineNumber = 0,
+              lineHeight = 1.1, // ems
+              x = text.attr("x"),
+              y = text.attr("y"),
+              dy = 0.25,
+              fontSize = '10px',
+              tspan = text.text(null).append("tspan").attr("x", x).attr("y", y).attr("dy", dy + "em").attr('font-size', fontSize);
+            while (true) {
+              word = words.pop();
+              if (!word) {
+                break;
+              }
+              line.push(word);
+              tspan.text(line.join(" "));
+              if (tspan.node().getComputedTextLength() > width) {
+                line.pop();
+                tspan.text(line.join(" "));
+                line = [word];
+                tspan = text.append("tspan").attr("x", x).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").attr('font-size', fontSize).text(word);
+              }
+            }
+          });
+        }
+
         //Adding events
-        blocks.on('mouseover', function () {
+        groups.on('mouseover', function () {
           var fillColor;
-          blocks.call(highlightBlock, false);
+          groups.call(highlightBlock, false);
           if (scope.rangeOnHover && fillSize <= scope.rangeHoverSize) {
             // Get fill color for current block
             fillColor = color(d3.select(this).map(function (d) {
               return d[0].__data__.value;
             }));
             // Highlight all blocks matching fill color
-            blocks[0].forEach(function (block) {
+            groups[0].forEach(function (block) {
               highlightBlockColor(d3.select(block), fillColor);
             });
           } else {
             d3.select(this).call(highlightBlock, true);
           }
         });
-        blocks.on('click', function (d) {
+        groups.on('click', function (d) {
           if (scope.clickAction) {
             scope.clickAction(d);
           }
         });
 
         //Compiles the tooltips
-        angular.forEach(angular.element(blocks), function (block) {
+        angular.forEach(angular.element(groups), function (block) {
           var el = angular.element(block);
           $compile(el)(scope);
         });
 
         svg.on('mouseleave', function () {
-          blocks.call(highlightBlock, true);
+          groups.call(highlightBlock, true);
         });
       };
 
