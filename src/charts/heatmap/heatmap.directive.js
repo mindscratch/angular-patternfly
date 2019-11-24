@@ -290,6 +290,7 @@ angular.module('patternfly.charts').directive('pfHeatmap', function ($compile, $
         var data = scope.data;
         var color = d3.scale.threshold().domain(scope.thresholds).range(scope.heatmapColorPattern);
         var rangeTooltip = d3.scale.threshold().domain(scope.thresholds).range(scope.rangeTooltips);
+        var groups;
         var blocks;
         var fillSize = blockSize - scope.padding;
         var highlightBlock = function (block, active) {
@@ -307,11 +308,8 @@ angular.module('patternfly.charts').directive('pfHeatmap', function ($compile, $
         };
 
         var svg = window.d3.select(thisComponent);
-        var groups;
         svg.selectAll('*').remove();
         groups = svg.selectAll('g').data(data).enter().append('g');
-        // blocks = svg.selectAll('rect').data(data).enter().append('rect');
-        // blocks.attr('x', function (d, i) {
         groups.append('rect').attr('x', function (d, i) {
           return Math.floor(i / numberOfRows) * blockSize;
         }).attr('y', function (d, i) {

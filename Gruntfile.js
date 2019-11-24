@@ -281,13 +281,13 @@ module.exports = function (grunt) {
         concatSrc = 'src/**/*.js';
       }
 
-      grunt.task.run(['clean', 'lint', 'ngtemplates', 'concat', 'ngAnnotate', 'uglify:build', 'cssmin', 'copymain', 'ngdocs', 'clean:templates']);
+      grunt.task.run(['clean', 'test', 'ngtemplates', 'concat', 'ngAnnotate', 'uglify:build', 'cssmin', 'copymain', 'ngdocs', 'clean:templates']);
     });
 
     // Runs all the tasks of build with the exception of tests
     grunt.registerTask('deploy', 'Prepares the project for deployment. Does not run unit tests', function () {
       var concatSrc = 'src/**/*.js';
-      grunt.task.run(['clean', 'lint', 'ngtemplates', 'concat', 'ngAnnotate', 'uglify:build', 'cssmin', 'copymain', 'ngdocs', 'clean:templates']);
+      grunt.task.run(['clean', 'lint', 'test', 'ngtemplates', 'concat', 'ngAnnotate', 'uglify:build', 'cssmin', 'copymain', 'ngdocs', 'clean:templates']);
     });
 
     grunt.registerTask('default', ['build']);
