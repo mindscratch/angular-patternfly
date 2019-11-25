@@ -1497,7 +1497,8 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
       rangeHoverSize: '@',
       rangeTooltips: '=?',
       includeTooltipInsideBox: '=?',
-      tooltipInsideBoxClass: '=?'
+      tooltipInsideBoxClass: '=?',
+      useSquareGrid: '=?'
     },
     templateUrl: 'charts/heatmap/heatmap.html',
     controller: ["$scope", function ($scope) {
@@ -1506,6 +1507,7 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
       var legendLabelDefaults = ['< 70%', '70-80%' ,'80-90%', '> 90%'];
       var rangeTooltipDefaults = ['< 70%', '70-80%' ,'80-90%', '> 90%'];
       var heightDefault = 200;
+      var absoluteMaxBlockSize = 128;
 
       //Allow overriding of defaults
       if ($scope.maxBlockSize === undefined || isNaN($scope.maxBlockSize)) {
@@ -1514,8 +1516,8 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
         $scope.maxSize = parseInt($scope.maxBlockSize);
         if ($scope.maxSize < 5) {
           $scope.maxSize = 5;
-        } else if ($scope.maxSize > 50) {
-          $scope.maxSize = 50;
+        } else if ($scope.maxSize > absoluteMaxBlockSize) {
+          $scope.maxSize = absoluteMaxBlockSize;
         }
       }
 
@@ -1557,10 +1559,11 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
       $scope.height = $scope.height || heightDefault;
       $scope.showLegend = $scope.showLegend || ($scope.showLegend === undefined);
       $scope.loadingDone = false;
+      $scope.useSquareGrid = $scope.useSquareGrid === undefined ? true : $scope.useSquareGrid === "true";
     }],
     link: function (scope, element, attrs) {
       var thisComponent = element[0].querySelector('.heatmap-pf-svg');
-      var containerWidth, containerHeight, blockSize, numberOfRows;
+      var containerWidth, containerHeight, blockSize, numberOfRows, numberOfCols;
 
       var setStyles = function () {
         scope.containerStyles = {
@@ -1574,28 +1577,35 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
         containerWidth = parentContainer.clientWidth;
         containerHeight = parentContainer.clientHeight;
         blockSize = determineBlockSize();
-
-        if ((blockSize - scope.padding) > scope.maxSize) {
-          blockSize = scope.padding + scope.maxSize;
-
-          // Attempt to square off the area, check if square fits
-          numberOfRows = Math.ceil(Math.sqrt(scope.data.length));
-          if (blockSize * numberOfRows > containerWidth ||
-              blockSize * numberOfRows > containerHeight) {
-            numberOfRows = (blockSize === 0) ? 0 : Math.floor(containerHeight / blockSize);
-          }
-        } else if ((blockSize - scope.padding) < scope.minSize) {
-          blockSize = scope.padding + scope.minSize;
-
-          // Attempt to square off the area, check if square fits
-          numberOfRows = Math.ceil(Math.sqrt(scope.data.length));
-          if (blockSize * numberOfRows > containerWidth ||
-              blockSize * numberOfRows > containerHeight) {
-            numberOfRows = (blockSize === 0) ? 0 : Math.floor(containerHeight / blockSize);
-          }
+        if (scope.useSquareGrid) {
+          numberOfRows = determineNumRows();
         } else {
-          numberOfRows = (blockSize === 0) ? 0 : Math.floor(containerHeight / blockSize);
+          numberOfCols = determineNumCols();
         }
+      };
+
+      var determineNumRows = function () {
+        var numRows;
+        if (blockSize === 0) {
+          return 0;
+        }
+
+        // Attempt to square off the area, check if square fits.
+        numRows = Math.ceil(Math.sqrt(scope.data.length));
+        if (blockSize * numRows > containerHeight ||
+           blockSize * numRows > containerWidth) {
+          numRows = Math.floor(containerHeight / blockSize);
+        }
+
+        return numRows;
+      };
+
+      var determineNumCols = function () {
+        if (blockSize === 0) {
+          return 0;
+        }
+
+        return Math.floor(containerWidth / blockSize);
       };
 
       var determineBlockSize = function () {
@@ -1605,6 +1615,7 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
         var px = Math.ceil(Math.sqrt(n * x / y));
         var py = Math.ceil(Math.sqrt(n * y / x));
         var sx, sy;
+        var optimalSize;
 
         if (Math.floor(px * y / x) * px < n) {
           sx = y / Math.ceil(px * y / x);
@@ -1617,13 +1628,37 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
         } else {
           sy = y / py;
         }
-        return Math.max(sx, sy);
+        optimalSize = Math.max(sx, sy);
+
+        // Correct optimal size if it does not fit.
+        if ((optimalSize - scope.padding) > scope.maxSize) {
+          return scope.padding + scope.maxSize;
+        } else if ((optimalSize - scope.padding) < scope.minSize) {
+          return scope.padding + scope.minSize;
+        }
+
+        return optimalSize;
+      };
+
+      var getXValue = function (d, i) {
+        if (scope.useSquareGrid) {
+          return Math.floor(i / numberOfRows) * blockSize;
+        }
+        return i % numberOfCols * blockSize;
+      };
+
+      var getYValue = function (d, i) {
+        if (scope.useSquareGrid) {
+          return i % numberOfRows * blockSize;
+        }
+        return Math.floor(i / numberOfCols) * blockSize;
       };
 
       var redraw = function () {
         var data = scope.data;
         var color = d3.scale.threshold().domain(scope.thresholds).range(scope.heatmapColorPattern);
         var rangeTooltip = d3.scale.threshold().domain(scope.thresholds).range(scope.rangeTooltips);
+        var groups;
         var blocks;
         var fillSize = blockSize - scope.padding;
         var highlightBlock = function (block, active) {
@@ -1641,16 +1676,12 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
         };
 
         var svg = window.d3.select(thisComponent);
-        var groups;
         svg.selectAll('*').remove();
         groups = svg.selectAll('g').data(data).enter().append('g');
-        // blocks = svg.selectAll('rect').data(data).enter().append('rect');
-        // blocks.attr('x', function (d, i) {
-        groups.append('rect').attr('x', function (d, i) {
-          return Math.floor(i / numberOfRows) * blockSize;
-        }).attr('y', function (d, i) {
-          return i % numberOfRows * blockSize;
-        }).attr('width', fillSize).attr('height', fillSize).style('fill', function (d) {
+        groups.append('rect'
+        ).attr('x', getXValue
+        ).attr('y', getYValue
+        ).attr('width', fillSize).attr('height', fillSize).style('fill', function (d) {
           return color(d.value);
         }).attr('uib-tooltip-html', function (d, i) { //tooltip-html is throwing an exception
           if (scope.rangeOnHover && fillSize <= scope.rangeHoverSize) {
@@ -1670,9 +1701,9 @@ angular.module('patternfly.charts').directive('pfHeatmap', ["$compile", "$window
           }).text(function (d) {
             return d.tooltip;
           }).attr("x", function (d, i) {
-            return (Math.floor(i / numberOfRows) * blockSize) + 3;
+            return getXValue(d, i) + 3;
           }).attr("y", function (d, i) {
-            return (i % numberOfRows * blockSize) + 10;
+            return getYValue(d, i) + 10;
           });
 
           // forcing text to wrap inside each box
