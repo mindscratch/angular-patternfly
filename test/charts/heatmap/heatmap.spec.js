@@ -48,7 +48,7 @@ describe('Directive: pfHeatmap', function() {
   it("should set color and tooltip of the block based on defaults", function() {
     element = compileChart('<div pf-heatmap chart-title="title" data="data"></div>',$scope);
 
-    block = angular.element(element).find('.heatmap-pf-svg').children().first();
+    block = angular.element(element).find('.heatmap-pf-svg').children().first().children().first();
     tooltip = block.attr('uib-tooltip-html');
 
     expect(tooltip).toBe("'Node 8 : My OpenShift Provider<br>96% : 96 Used of 100 Total<br>4 Available'");
@@ -65,7 +65,7 @@ describe('Directive: pfHeatmap', function() {
 
     element = compileChart('<div pf-heatmap chart-title="title" data="data" legend-labels="legendLabels" heatmap-color-pattern="heatmapColorPattern" thresholds="thresholds"></div>',$scope);
 
-    block = angular.element(element).find('.heatmap-pf-svg').children().first();
+    block = angular.element(element).find('.heatmap-pf-svg').children().first().children().first();
 
     color = block.attr('style');
 
@@ -79,7 +79,7 @@ describe('Directive: pfHeatmap', function() {
     $scope.heatmapColorPattern = ['#d4f0fa', '#F9D67A', '#EC7A08', '#CE0000', '#ff0000'];
 
     element = compileChart('<div pf-heatmap chart-title="title" data="data" legend-labels="legendLabels" heatmap-color-pattern="heatmapColorPattern" thresholds="thresholds"></div>',$scope);
-    block = angular.element(element).find('.heatmap-pf-svg').children().first();
+    block = angular.element(element).find('.heatmap-pf-svg').children().first().children().first();
     color = block.attr('style');
 
     var result = color.trim() == 'fill: #ce0000;' || color.trim() == 'fill: rgb(206, 0, 0);';
